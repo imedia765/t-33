@@ -13,6 +13,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { WebMetricsD3 } from "@/components/visualizations/WebMetricsD3";
+import { WebMetricsHighcharts } from "@/components/visualizations/WebMetricsHighcharts";
+import { WebMetricsP5 } from "@/components/visualizations/WebMetricsP5";
 
 interface WebsiteReport {
   metric: string;
@@ -328,6 +331,12 @@ export default function WebTools() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6">
+                  <WebMetricsD3 data={report} />
+                  <WebMetricsHighcharts data={report} />
+                  <WebMetricsP5 data={report} />
                 </div>
 
                 <div>
