@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { WebMetricsHighcharts } from "@/components/visualizations/WebMetricsHigh
 import { WebMetricsP5 } from "@/components/visualizations/WebMetricsP5";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
+import { AppSidebar } from "@/components/AppSidebar";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MetricResult {
   metric: string;
@@ -43,16 +45,34 @@ const WebTools = () => {
     { metric: "Web App Manifest", value: "Missing" }
   ]);
 
-  const [logs, setLogs] = useState<ConsoleLog[]>([
-    { timestamp: "6:39:01 AM", message: "Starting analysis of https://pwaburton.co.uk" },
-    { timestamp: "6:39:01 AM", message: "Attempting to fetch https://pwaburton.co.uk" },
-    { timestamp: "6:39:01 AM", message: "Using primary proxy: allorigins.win" },
-    { timestamp: "6:39:02 AM", message: "Successfully fetched content" },
-    { timestamp: "6:39:02 AM", message: "Completed basic analysis" },
-    { timestamp: "6:39:02 AM", message: "Analysis completed successfully" }
-  ]);
+  const [logs, setLogs] = useState<ConsoleLog[]>([]);
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Subscribe to real-time updates for website analysis
+    const channel = supabase
+      .channel('analysis-updates')
+      .on('broadcast', { event: 'analysis-log' }, ({ payload }) => {
+        setLogs(currentLogs => [...currentLogs, {
+          timestamp: new Date().toLocaleTimeString(),
+          message: payload.message
+        }]);
+      })
+      .on('broadcast', { event: 'analysis-result' }, ({ payload }) => {
+        setResults(payload.results);
+        setAnalyzing(false);
+        toast({
+          title: "Analysis Updated",
+          description: "Website analysis results have been updated"
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [toast]);
 
   const analyzeWebsite = async () => {
     if (!url) {
@@ -65,90 +85,100 @@ const WebTools = () => {
     }
 
     setAnalyzing(true);
-    // Simulate analysis delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setAnalyzing(false);
-    
-    toast({
-      title: "Analysis Complete",
-      description: "Website analysis completed successfully"
+    setLogs([{
+      timestamp: new Date().toLocaleTimeString(),
+      message: `Starting analysis of ${url}`
+    }]);
+
+    // Broadcast the analysis request
+    await supabase.channel('analysis-updates').send({
+      type: 'broadcast',
+      event: 'start-analysis',
+      payload: { url }
     });
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Web Development Tools</h1>
-      
-      <Card className="p-6 mb-6">
-        <div className="flex gap-4 items-center">
-          <Input 
-            placeholder="Enter website URL" 
-            value={url} 
-            onChange={(e) => setUrl(e.target.value)}
-            className="flex-1"
-          />
-          <Button 
-            onClick={analyzeWebsite}
-            disabled={analyzing}
-          >
-            {analyzing ? "Analyzing..." : "Analyze Website"}
-          </Button>
-        </div>
+    <div className="flex h-screen">
+      <AppSidebar />
+      <div className="flex-1 container mx-auto p-6 overflow-auto">
+        <h1 className="text-3xl font-bold mb-6">Web Development Tools</h1>
+        
+        <Card className="p-6 mb-6">
+          <div className="flex gap-4 items-center">
+            <Input 
+              placeholder="Enter website URL" 
+              value={url} 
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex-1"
+            />
+            <Button 
+              onClick={analyzeWebsite}
+              disabled={analyzing}
+            >
+              {analyzing ? "Analyzing..." : "Analyze Website"}
+            </Button>
+          </div>
 
-        <div className="mt-4">
-          <h2 className="text-xl font-semibold mb-2">Analysis Status</h2>
-          <p className="text-green-500">Analysis completed successfully</p>
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card className="p-4">
-          <h2 className="text-xl font-semibold mb-4">Console Logs</h2>
-          <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-            {logs.map((log, index) => (
-              <div key={index} className="mb-2">
-                <span className="text-muted-foreground">[{log.timestamp}]</span>{" "}
-                {log.message}
-              </div>
-            ))}
-          </ScrollArea>
+          <div className="mt-4">
+            <h2 className="text-xl font-semibold mb-2">Analysis Status</h2>
+            <p className={analyzing ? "text-yellow-500" : "text-green-500"}>
+              {analyzing ? "Analysis in progress..." : "Analysis completed successfully"}
+            </p>
+          </div>
         </Card>
 
-        <Card className="p-4">
-          <h2 className="text-xl font-semibold mb-4">Website Analysis Report</h2>
-          <ScrollArea className="h-[200px] w-full rounded-md border">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2">Metric</th>
-                  <th className="text-left p-2">Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((result, index) => (
-                  <tr key={index} className="border-b">
-                    <td className="p-2">{result.metric}</td>
-                    <td className="p-2">
-                      <span className={result.value === "Missing" ? "text-destructive" : 
-                             (result.value === "Present" || result.value === "Yes") ? "text-green-500" : ""}>
-                        {result.value}
-                      </span>
-                    </td>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <Card className="p-4">
+            <h2 className="text-xl font-semibold mb-4">Console Logs</h2>
+            <ScrollArea className="h-[200px] w-full rounded-md border p-4">
+              {logs.map((log, index) => (
+                <div key={index} className="mb-2">
+                  <span className="text-muted-foreground">[{log.timestamp}]</span>{" "}
+                  {log.message}
+                </div>
+              ))}
+            </ScrollArea>
+          </Card>
+
+          <Card className="p-4">
+            <h2 className="text-xl font-semibold mb-4">Website Analysis Report</h2>
+            <ScrollArea className="h-[200px] w-full rounded-md border">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Metric</th>
+                    <th className="text-left p-2">Value</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollArea>
-        </Card>
-      </div>
+                </thead>
+                <tbody>
+                  {results.map((result, index) => (
+                    <tr key={index} className="border-b">
+                      <td className="p-2">{result.metric}</td>
+                      <td className="p-2">
+                        <span className={
+                          result.value === "Missing" ? "text-destructive" : 
+                          (result.value === "Present" || result.value === "Yes") ? "text-green-500" : ""
+                        }>
+                          {result.value}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollArea>
+          </Card>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <WebMetricsD3 data={results} />
-        <WebMetricsHighcharts data={results} />
-      </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <WebMetricsD3 data={results} />
+          <WebMetricsHighcharts data={results} />
+        </div>
 
-      <div className="mt-6">
-        <WebMetricsP5 data={results} />
+        <div className="mt-6">
+          <WebMetricsP5 data={results} />
+        </div>
       </div>
     </div>
   );
