@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { WebMetricsD3 } from "@/components/visualizations/WebMetricsD3";
 import { WebMetricsHighcharts } from "@/components/visualizations/WebMetricsHighcharts";
 import { WebMetricsP5 } from "@/components/visualizations/WebMetricsP5";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 interface WebsiteReport {
   metric: string;
@@ -275,12 +277,17 @@ export default function WebTools() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <div className="space-y-6">
               {status !== "idle" && (
-                <div className="bg-secondary/50 backdrop-blur-sm rounded-lg p-4">
-                  <h3 className="text-lg font-semibold mb-2">Analysis Status</h3>
-                  <div className={`text-sm ${
+                <Alert
+                  className={`${
+                    status === "loading" ? "bg-yellow-500/10" :
+                    status === "success" ? "bg-green-500/10" :
+                    status === "error" ? "bg-red-500/10" : ""
+                  }`}
+                >
+                  <AlertDescription className={`${
                     status === "loading" ? "text-yellow-500" :
                     status === "success" ? "text-green-500" :
                     status === "error" ? "text-red-500" : ""
@@ -288,8 +295,8 @@ export default function WebTools() {
                     {status === "loading" && "Analysis in progress..."}
                     {status === "success" && "Analysis completed successfully"}
                     {status === "error" && "Analysis failed"}
-                  </div>
-                </div>
+                  </AlertDescription>
+                </Alert>
               )}
 
               <div className="bg-secondary/50 backdrop-blur-sm rounded-lg p-4">
@@ -299,7 +306,7 @@ export default function WebTools() {
                     <div
                       key={index}
                       className={`text-sm mb-2 ${
-                        log.type === "error" ? "text-red-500" :
+                        log.type === "error" ? "text-[#ea384c]" :
                         log.type === "success" ? "text-green-500" :
                         "text-muted-foreground"
                       }`}
@@ -326,7 +333,15 @@ export default function WebTools() {
                       {report.map((item) => (
                         <TableRow key={item.metric}>
                           <TableCell className="font-medium">{item.metric}</TableCell>
-                          <TableCell>{item.value}</TableCell>
+                          <TableCell>
+                            {item.value === "Missing" ? (
+                              <Badge variant="destructive">{item.value}</Badge>
+                            ) : item.value === "Present" || item.value === "Yes" ? (
+                              <Badge variant="default" className="bg-green-500">{item.value}</Badge>
+                            ) : (
+                              item.value
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -355,17 +370,20 @@ export default function WebTools() {
                           <TableCell className="font-medium">{error.type}</TableCell>
                           <TableCell>{error.description}</TableCell>
                           <TableCell>
-                            <span
-                              className={`px-2 py-1 rounded-full text-sm ${
-                                error.severity === "high"
-                                  ? "bg-red-100 text-red-800"
-                                  : error.severity === "medium"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-green-100 text-green-800"
-                              }`}
+                            <Badge
+                              variant={
+                                error.severity === "high" ? "destructive" :
+                                error.severity === "medium" ? "secondary" :
+                                "default"
+                              }
+                              className={
+                                error.severity === "high" ? "bg-[#ea384c]" :
+                                error.severity === "medium" ? "bg-[#F97316]" :
+                                "bg-green-500"
+                              }
                             >
                               {error.severity}
-                            </span>
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))}
